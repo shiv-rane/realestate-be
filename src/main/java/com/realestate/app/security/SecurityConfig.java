@@ -38,13 +38,13 @@ public class SecurityConfig {
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
 
     /** Swagger / OpenAPI paths that must remain public */
-    private static final String[] SWAGGER_WHITELIST = {
-        "/swagger-ui/**",
-        "/swagger-ui.html",
-        "/api-docs/**",
-        "/api-docs.yaml",
-        "/v3/api-docs/**"
-    };
+//    private static final String[] SWAGGER_WHITELIST = {
+//        "/swagger-ui/**",
+//        "/swagger-ui.html",
+//        "/api-docs/**",
+//        "/api-docs.yaml",
+//        "/v3/api-docs/**"
+//    };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -72,7 +72,7 @@ public class SecurityConfig {
                 // Public developer listing — no auth required
                 .requestMatchers("/api/v1/developers/**").permitAll()
                 // Swagger / OpenAPI docs
-                .requestMatchers(SWAGGER_WHITELIST).permitAll()
+//                .requestMatchers(SWAGGER_WHITELIST).permitAll()
                 // Actuator health (optional, useful for container probes)
                 .requestMatchers("/actuator/health").permitAll()
                 // Admin endpoints — ADMIN role only (method-level @PreAuthorize also enforced)
@@ -90,7 +90,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedOrigins(List.of(
+                "https://realestate-p2ae825cp-dev-connect6.vercel.app",
+                "http://localhost:3000",
+                "http://localhost:5173",
+                "http://localhost:8080"
+        ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));

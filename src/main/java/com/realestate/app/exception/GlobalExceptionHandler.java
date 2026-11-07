@@ -111,6 +111,21 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(EmailSendingException.class)
+    public ResponseEntity<ErrorResponse> handleEmailSending(
+            EmailSendingException ex, HttpServletRequest request) {
+        log.error("Email delivery failed at [{}]: {}", request.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
+            new ErrorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Email Delivery Error",
+                ex.getMessage(),
+                request.getRequestURI(),
+                Instant.now()
+            )
+        );
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex, HttpServletRequest request) {

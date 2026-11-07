@@ -5,8 +5,12 @@ import com.realestate.app.dto.admin.CreateDeveloperRequest;
 import com.realestate.app.dto.admin.ProjectRequest;
 import com.realestate.app.dto.developer.DeveloperProfileResponse;
 import com.realestate.app.dto.developer.ProjectResponse;
+import com.realestate.app.dto.land.LandParcelResponse;
+import com.realestate.app.dto.land.UpdateLandStatusRequest;
+import com.realestate.app.entity.enums.LandStatus;
 import com.realestate.app.entity.enums.VerificationStatus;
 import com.realestate.app.service.AdminService;
+import com.realestate.app.service.LandParcelService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -39,17 +43,22 @@ import java.util.UUID;
  *   PUT    /api/v1/admin/developers/{devId}/projects/{projectId}
  *   DELETE /api/v1/admin/developers/{devId}/projects/{projectId}
  *
+ * Land Parcel management:
+ *   GET    /api/v1/admin/lands
+ *   PATCH  /api/v1/admin/lands/{id}/status
+ *
  * Stats:
  *   GET /api/v1/admin/stats
  */
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
-@Tag(name = "Admin", description = "Admin-only endpoints — manage developers, projects, and view platform stats")
+@Tag(name = "Admin", description = "Admin-only endpoints — manage developers, projects, lands, and view platform stats")
 @SecurityRequirement(name = "bearerAuth")
 public class AdminController {
 
     private final AdminService adminService;
+    private final LandParcelService landParcelService;
 
     // -------------------------------------------------------
     // Stats
@@ -160,5 +169,33 @@ public class AdminController {
             @PathVariable UUID projectId) {
         adminService.deleteProject(developerId, projectId);
         return ResponseEntity.noContent().build();
+    }
+
+    // -------------------------------------------------------
+    // Land Parcel Management (Admin Oversight)
+    // -------------------------------------------------------
+
+    @GetMapping("/lands")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+        summary = "Admin: List All Land Parcels",
+        description = "List all land parcels submitted across the platform by all users. Filter by ?status=PENDING_REVIEW|VERIFIED|IN_DISCUSSION|REJECTED."
+    )
+    public ResponseEntity<List<LandParcelResponse>> listAllLands(
+            @Parameter(description = "Filter by land parcel status (optional)")
+            @RequestParam(required = false) LandStatus status) {
+        return ResponseEntity.ok(landParcelService.listAllParcelsForAdmin(status));
+    }
+
+    @PatchMapping("/lands/{id}/status")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(
+        summary = "Admin: Update Land Status",
+        description = "Verifies, approves, or rejects a submitted land parcel with admin feedback."
+    )
+    public ResponseEntity<LandParcelResponse> updateLandStatus(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateLandStatusRequest request) {
+        return ResponseEntity.ok(landParcelService.updateParcelStatusByAdmin(id, request));
     }
 }
