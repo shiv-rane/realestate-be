@@ -95,6 +95,7 @@ public class SecurityConfig {
                 "http://localhost:5173",
                 "http://localhost:8080",
                 "https://bhoomiisetu.in",
+                "https://realestate-fe-topaz.vercel.app",
                 "https://realestate-fe-topaz.vercel.app/"
         ));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
