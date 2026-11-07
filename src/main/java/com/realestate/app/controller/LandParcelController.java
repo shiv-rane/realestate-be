@@ -28,6 +28,7 @@ import java.util.UUID;
  * Controller for Landowners (OWNER) and Agents (AGENT) to submit and manage land parcels.
  * Also provides endpoints to browse verified parcels and for admins to verify submissions.
  */
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1/lands")
 @Tag(name = "Land Parcels", description = "Submit and manage land information (Owner, Agent & Admin)")

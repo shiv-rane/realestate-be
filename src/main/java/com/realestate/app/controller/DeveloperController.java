@@ -19,6 +19,7 @@ import java.util.UUID;
  * Public Developer Controller — no authentication required.
  * Exposes approved developer profiles and their project portfolios to the public.
  */
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1/developers")
 @Tag(name = "Developers (Public)", description = "Browse approved developers and their projects — no auth required")

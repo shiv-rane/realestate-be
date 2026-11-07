@@ -50,6 +50,7 @@ import java.util.UUID;
  * Stats:
  *   GET /api/v1/admin/stats
  */
+@CrossOrigin(origins = "*")
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
