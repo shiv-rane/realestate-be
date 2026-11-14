@@ -1,20 +1,20 @@
 package com.realestate.app.service.impl;
 
 import com.realestate.app.exception.EmailSendingException;
-import jakarta.mail.Session;
-import jakarta.mail.internet.MimeMessage;
+import com.resend.Resend;
+import com.resend.core.exception.ResendException;
+import com.resend.services.emails.Emails;
+import com.resend.services.emails.model.CreateEmailOptions;
+import com.resend.services.emails.model.CreateEmailResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.MailSendException;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.util.ReflectionTestUtils;
-
-import java.util.Properties;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,52 +25,57 @@ import static org.mockito.Mockito.*;
 class EmailServiceImplTest {
 
     @Mock
-    private JavaMailSender mailSender;
+    private Resend resend;
+
+    @Mock
+    private Emails emails;
 
     @InjectMocks
     private EmailServiceImpl emailService;
 
-    private MimeMessage mimeMessage;
-
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(emailService, "fromEmail", "devconnect2027@gmail.com");
-        ReflectionTestUtils.setField(emailService, "fromName", "Real Estate Marketplace");
+        ReflectionTestUtils.setField(emailService, "fromEmail", "noreply@bhoomiisetu.in");
+        ReflectionTestUtils.setField(emailService, "fromName", "Bhoomi Setu");
         ReflectionTestUtils.setField(emailService, "otpExpiryMinutes", 10);
 
-        mimeMessage = new MimeMessage(Session.getInstance(new Properties()));
-        when(mailSender.createMimeMessage()).thenReturn(mimeMessage);
+        when(resend.emails()).thenReturn(emails);
     }
 
     @Test
-    @DisplayName("Should successfully send OTP email with correct recipient and subject")
+    @DisplayName("Should successfully send OTP email via Resend")
     void sendOtp_Success() throws Exception {
         String recipient = "buyer@example.com";
         String otp = "123456";
 
+        CreateEmailResponse response = mock(CreateEmailResponse.class);
+        when(response.getId()).thenReturn("resend-id-123");
+        when(emails.send(any(CreateEmailOptions.class))).thenReturn(response);
+
         emailService.sendOtp(recipient, otp);
 
-        verify(mailSender, times(1)).createMimeMessage();
-        verify(mailSender, times(1)).send(mimeMessage);
+        ArgumentCaptor<CreateEmailOptions> captor = ArgumentCaptor.forClass(CreateEmailOptions.class);
+        verify(emails, times(1)).send(captor.capture());
 
-        assertThat(mimeMessage.getAllRecipients()[0].toString()).isEqualTo(recipient);
-        assertThat(mimeMessage.getSubject()).contains("123456");
-        assertThat(mimeMessage.getSubject()).contains("Real Estate Marketplace");
+        CreateEmailOptions options = captor.getValue();
+        assertThat(options.getTo()).contains(recipient);
+        assertThat(options.getSubject()).contains("123456");
+        assertThat(options.getFrom()).contains("noreply@bhoomiisetu.in");
     }
 
     @Test
-    @DisplayName("Should throw EmailSendingException when mail delivery fails")
-    void sendOtp_MailException_ThrowsEmailSendingException() {
+    @DisplayName("Should throw EmailSendingException when Resend API fails")
+    void sendOtp_ResendException_ThrowsEmailSendingException() throws Exception {
         String recipient = "buyer@example.com";
         String otp = "654321";
 
-        doThrow(new MailSendException("SMTP connection timed out"))
-                .when(mailSender).send(any(MimeMessage.class));
+        when(emails.send(any(CreateEmailOptions.class)))
+                .thenThrow(new ResendException("Resend API rate limit or error"));
 
         assertThatThrownBy(() -> emailService.sendOtp(recipient, otp))
                 .isInstanceOf(EmailSendingException.class)
                 .hasMessageContaining("Unable to send verification email");
 
-        verify(mailSender, times(1)).send(any(MimeMessage.class));
+        verify(emails, times(1)).send(any(CreateEmailOptions.class));
     }
 }

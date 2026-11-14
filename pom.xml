@@ -105,6 +105,13 @@
 			<artifactId>spring-boot-starter-mail</artifactId>
 		</dependency>
 
+		<!-- ===== Resend Java SDK ===== -->
+		<dependency>
+			<groupId>com.resend</groupId>
+			<artifactId>resend-java</artifactId>
+			<version>4.30.0</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>

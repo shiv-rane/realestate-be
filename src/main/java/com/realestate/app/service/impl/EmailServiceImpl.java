@@ -2,21 +2,19 @@ package com.realestate.app.service.impl;
 
 import com.realestate.app.exception.EmailSendingException;
 import com.realestate.app.service.EmailService;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
+import com.resend.Resend;
+import com.resend.core.exception.ResendException;
+import com.resend.services.emails.model.CreateEmailOptions;
+import com.resend.services.emails.model.CreateEmailResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.MailException;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
+import org.springframework.util.StringUtils;
 
 /**
- * Production implementation of {@link EmailService} using Spring's {@link JavaMailSender}.
+ * Production implementation of {@link EmailService} using the Resend HTTPS API
+ * (Port 443).
  * Sends rich HTML emails containing the OTP verification code to users.
  */
 @Service
@@ -24,12 +22,12 @@ import java.nio.charset.StandardCharsets;
 @Slf4j
 public class EmailServiceImpl implements EmailService {
 
-    private final JavaMailSender mailSender;
+    private final Resend resend;
 
-    @Value("${spring.mail.username}")
+    @Value("${resend.from-email:noreply@bhoomiisetu.in}")
     private String fromEmail;
 
-    @Value("${app.mail.from-name:Real Estate Marketplace}")
+    @Value("${app.mail.from-name:Bhoomi Setu}")
     private String fromName;
 
     @Value("${app.otp.expiry-minutes:10}")
@@ -37,39 +35,44 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendOtp(String toEmail, String otp) {
-        log.info("Dispatching OTP email to: {}", toEmail);
+        log.info("======================================================");
+        log.info("  [OTP CODE] To: {} | Code: {}", toEmail, otp);
+        log.info("======================================================");
 
         try {
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(
-                    mimeMessage,
-                    MimeMessageHelper.MULTIPART_MODE_MIXED_RELATED,
-                    StandardCharsets.UTF_8.name()
-            );
-
-            helper.setFrom(fromEmail, fromName);
-            helper.setTo(toEmail);
-            helper.setSubject(otp + " is your Real Estate Marketplace verification code");
-
             String htmlContent = buildOtpHtmlTemplate(otp);
             String plainText = buildOtpPlainText(otp);
 
-            helper.setText(plainText, htmlContent);
+            String sender = StringUtils.hasText(fromName)
+                    ? fromName + " <" + fromEmail + ">"
+                    : fromEmail;
 
-            mailSender.send(mimeMessage);
-            log.info("OTP email successfully sent to: {}", toEmail);
+            CreateEmailOptions params = CreateEmailOptions.builder()
+                    .from(sender)
+                    .to(toEmail)
+                    .subject(otp + " is your " + fromName + " verification code")
+                    .html(htmlContent)
+                    .text(plainText)
+                    .build();
 
-        } catch (MessagingException | UnsupportedEncodingException | MailException ex) {
-            log.error("Failed to send OTP email to [{}]: {}", toEmail, ex.getMessage(), ex);
+            CreateEmailResponse response = resend.emails().send(params);
+            log.info("OTP email successfully sent via Resend to [{}] with ID: {}", toEmail, response.getId());
+
+        } catch (ResendException ex) {
+            log.error("Resend API error sending OTP email to [{}]: {}", toEmail, ex.getMessage(), ex);
             throw new EmailSendingException(
                     "Unable to send verification email. Please check your email address or try again later.",
-                    ex
-            );
+                    ex);
+        } catch (Exception ex) {
+            log.error("Unexpected error sending OTP email to [{}]: {}", toEmail, ex.getMessage(), ex);
+            throw new EmailSendingException(
+                    "Unable to send verification email. Please check your email address or try again later.",
+                    ex);
         }
     }
 
     private String buildOtpPlainText(String otp) {
-        return "Your Real Estate Marketplace verification code is: " + otp + "\n\n"
+        return "Your " + fromName + " verification code is: " + otp + "\n\n"
                 + "This code is valid for " + otpExpiryMinutes + " minutes.\n"
                 + "If you did not request this verification code, please ignore this email.";
     }
@@ -90,7 +93,8 @@ public class EmailServiceImpl implements EmailService {
                 + "          <!-- Header -->"
                 + "          <tr>"
                 + "            <td style=\"background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 100%);padding:32px 40px;text-align:center;\">"
-                + "              <h1 style=\"margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;\">Real Estate Marketplace</h1>"
+                + "              <h1 style=\"margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;\">"
+                + fromName + "</h1>"
                 + "              <p style=\"margin:6px 0 0;font-size:13px;color:#bfdbfe;font-weight:400;\">Secure Authentication Service</p>"
                 + "            </td>"
                 + "          </tr>"
@@ -123,7 +127,7 @@ public class EmailServiceImpl implements EmailService {
                 + "          <tr>"
                 + "            <td style=\"background:#f8fafc;padding:20px 40px;border-top:1px solid #f1f5f9;text-align:center;\">"
                 + "              <p style=\"margin:0;font-size:11px;color:#94a3b8;\">"
-                + "                &copy; Real Estate Marketplace Inc. All rights reserved.<br>"
+                + "                &copy; " + fromName + ". All rights reserved.<br>"
                 + "                This is an automated system email, please do not reply directly to this message."
                 + "              </p>"
                 + "            </td>"
