@@ -5,6 +5,8 @@ import com.realestate.app.dto.auth.SendOtpRequest;
 import com.realestate.app.dto.auth.SendOtpResponse;
 import com.realestate.app.dto.auth.VerifyOtpRequest;
 import com.realestate.app.entity.User;
+import com.realestate.app.entity.enums.UserRole;
+import com.realestate.app.exception.BusinessRuleException;
 import com.realestate.app.exception.EntityNotFoundException;
 import com.realestate.app.exception.InvalidOtpException;
 import com.realestate.app.repository.UserRepository;
@@ -23,9 +25,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
- * Implementation of {@link AuthService}.
- * Handles email OTP generation, storage, validation, and JWT issuance.
- * Passwordless — the OTP proves ownership of the email address.
+ * Production implementation of {@link AuthService}.
+ * Handles passwordless email OTP authentication and issues signed JWTs.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,6 +40,9 @@ public class AuthServiceImpl implements AuthService {
     @Value("${app.otp.expiry-minutes:10}")
     private int otpExpiryMinutes;
 
+    @Value("${app.admin.email:bhoomiisetu@gmail.com}")
+    private String adminEmail;
+
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     // =========================================================
@@ -48,17 +52,35 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public SendOtpResponse sendOtp(SendOtpRequest request) {
-        String email = request.email();
+        String email = request.email() != null ? request.email().trim().toLowerCase() : "";
 
         // Guard: DEVELOPER accounts cannot self-register
-        if (request.role() == com.realestate.app.entity.enums.UserRole.DEVELOPER) {
-            throw new com.realestate.app.exception.BusinessRuleException(
+        if (request.role() == UserRole.DEVELOPER) {
+            throw new BusinessRuleException(
                 "DEVELOPER accounts are managed by admins and cannot self-register.");
+        }
+
+        // Guard: Only the configured admin email can register or request the ADMIN role
+        if (request.role() == UserRole.ADMIN && !adminEmail.equalsIgnoreCase(email)) {
+            throw new BusinessRuleException(
+                "Access Denied: Only the authorized administrator account can access the ADMIN role.");
         }
 
         // Find existing user or create a new placeholder with name + role
         User user = userRepository.findByEmail(email)
             .orElseGet(() -> createPlaceholderUser(request));
+
+        // Enforce ADMIN role for the designated admin email
+        if (adminEmail.equalsIgnoreCase(email) && user.getRole() != UserRole.ADMIN) {
+            log.info("Elevating user [{}] to ADMIN role", email);
+            user.setRole(UserRole.ADMIN);
+            userRepository.save(user);
+        }
+
+        // Guard: Ensure non-admin email cannot access an existing ADMIN account
+        if (user.getRole() == UserRole.ADMIN && !adminEmail.equalsIgnoreCase(email)) {
+            throw new BusinessRuleException("Access Denied: Unauthorized access to administrator account.");
+        }
 
         // Generate a cryptographically secure 6-digit OTP
         String otp = generateOtp();
@@ -68,7 +90,7 @@ public class AuthServiceImpl implements AuthService {
         user.setOtpExpiry(Instant.now().plus(otpExpiryMinutes, ChronoUnit.MINUTES));
         userRepository.save(user);
 
-        // Delegate to EmailService (console mock in Phase 1)
+        // Delegate to EmailService
         emailService.sendOtp(email, otp);
 
         log.info("OTP dispatched to email: {}", email);
@@ -85,7 +107,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse verifyOtp(VerifyOtpRequest request) {
-        String email = request.email();
+        String email = request.email() != null ? request.email().trim().toLowerCase() : "";
 
         User user = userRepository.findByEmail(email)
             .orElseThrow(() -> new EntityNotFoundException(
@@ -107,14 +129,24 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidOtpException("Invalid OTP. Please try again.");
         }
 
+        // Enforce ADMIN role if this is the designated admin email
+        if (adminEmail.equalsIgnoreCase(email) && user.getRole() != UserRole.ADMIN) {
+            user.setRole(UserRole.ADMIN);
+        }
+
+        // Guard: Prevent any other email from authenticating as ADMIN
+        if (user.getRole() == UserRole.ADMIN && !adminEmail.equalsIgnoreCase(email)) {
+            throw new BusinessRuleException("Access Denied: Unauthorized administrator account.");
+        }
+
         // Mark email as verified and clear the OTP
         user.setIsEmailVerified(true);
         invalidateOtp(user);
         userRepository.save(user);
 
-        log.info("Email verified for userId: {}", user.getId());
+        log.info("Email verified for userId: {} with role: {}", user.getId(), user.getRole());
 
-        // Issue JWT
+        // Issue JWT with user's verified role
         String token = jwtTokenProvider.generateToken(user.getId(), user.getRole().name());
 
         return new AuthResponse(
@@ -132,13 +164,15 @@ public class AuthServiceImpl implements AuthService {
     // =========================================================
 
     private User createPlaceholderUser(SendOtpRequest request) {
-        log.info("Creating new user — email: {}, name: {}, role: {}",
-                request.email(), request.name(), request.role());
+        String email = request.email().trim().toLowerCase();
+        UserRole assignedRole = adminEmail.equalsIgnoreCase(email) ? UserRole.ADMIN : request.role();
+
+        log.info("Creating new user — email: {}, name: {}, role: {}", email, request.name(), assignedRole);
         User newUser = User.builder()
             .id(UUID.randomUUID())
             .name(request.name())
-            .email(request.email())
-            .role(request.role())
+            .email(email)
+            .role(assignedRole)
             .isEmailVerified(false)
             .build();
         return userRepository.save(newUser);
