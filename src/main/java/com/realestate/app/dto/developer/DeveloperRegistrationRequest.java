@@ -18,7 +18,6 @@ public record DeveloperRegistrationRequest(
     @Size(max = 255, message = "Company name must not exceed 255 characters")
     String companyName,
 
-    @NotBlank(message = "RERA registration number is required")
     @Size(max = 50, message = "RERA number must not exceed 50 characters")
     String reraNumber,
 

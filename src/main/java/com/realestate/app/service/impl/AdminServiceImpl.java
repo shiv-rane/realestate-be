@@ -57,9 +57,13 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional
     public DeveloperProfileResponse createDeveloper(CreateDeveloperRequest request) {
-        if (developerProfileRepository.existsByReraNumber(request.reraNumber())) {
+        String normalizedRera = (request.reraNumber() != null && !request.reraNumber().isBlank())
+                ? request.reraNumber().trim()
+                : null;
+
+        if (normalizedRera != null && developerProfileRepository.existsByReraNumber(normalizedRera)) {
             throw new BusinessRuleException(
-                "RERA number '" + request.reraNumber() + "' is already registered.");
+                "RERA number '" + normalizedRera + "' is already registered.");
         }
         DeveloperProfile profile = DeveloperProfile.builder()
             .companyName(request.companyName())
@@ -67,7 +71,7 @@ public class AdminServiceImpl implements AdminService {
             .contactEmail(request.contactEmail())
             .contactPhone(request.contactPhone())
             .websiteUrl(request.websiteUrl())
-            .reraNumber(request.reraNumber())
+            .reraNumber(normalizedRera)
             .gstNumber(request.gstNumber())
             .description(request.description())
             .establishedYear(request.establishedYear())
@@ -100,11 +104,16 @@ public class AdminServiceImpl implements AdminService {
         DeveloperProfile profile = developerProfileRepository.findById(profileId)
             .orElseThrow(() -> new EntityNotFoundException("DeveloperProfile", profileId));
 
-        // Check RERA uniqueness only if it changed
-        if (!profile.getReraNumber().equals(request.reraNumber())
-                && developerProfileRepository.existsByReraNumber(request.reraNumber())) {
+        // Check RERA uniqueness only if it changed and is non-null
+        String normalizedRera = (request.reraNumber() != null && !request.reraNumber().isBlank())
+                ? request.reraNumber().trim()
+                : null;
+
+        if (normalizedRera != null
+                && !normalizedRera.equals(profile.getReraNumber())
+                && developerProfileRepository.existsByReraNumber(normalizedRera)) {
             throw new BusinessRuleException(
-                "RERA number '" + request.reraNumber() + "' is already in use by another developer.");
+                "RERA number '" + normalizedRera + "' is already in use by another developer.");
         }
 
         profile.setCompanyName(request.companyName());
@@ -112,7 +121,7 @@ public class AdminServiceImpl implements AdminService {
         profile.setContactEmail(request.contactEmail());
         profile.setContactPhone(request.contactPhone());
         profile.setWebsiteUrl(request.websiteUrl());
-        profile.setReraNumber(request.reraNumber());
+        profile.setReraNumber(normalizedRera);
         profile.setGstNumber(request.gstNumber());
         profile.setDescription(request.description());
         profile.setEstablishedYear(request.establishedYear());

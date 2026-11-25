@@ -53,7 +53,7 @@ public class DeveloperProfile {
 
     // ── Regulatory ─────────────────────────────────────────────────────────────
 
-    @Column(name = "rera_number", nullable = false, unique = true, length = 50)
+    @Column(name = "rera_number", length = 50, unique = true)
     private String reraNumber;
 
     @Column(name = "gst_number", length = 20)

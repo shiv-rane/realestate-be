@@ -31,7 +31,6 @@ public record CreateDeveloperRequest(
     @Size(max = 500, message = "Website URL must not exceed 500 characters")
     String websiteUrl,
 
-    @NotBlank(message = "RERA registration number is required")
     @Size(max = 50, message = "RERA number must not exceed 50 characters")
     String reraNumber,
 
